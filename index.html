@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <title>TripWallet - แอปหารค่าเที่ยว</title>
+    
+    <!-- ========================================== -->
+    <!-- 🌟 โซนตั้งค่าหน้าตาแอป & ไอคอน (App Meta Tags) 🌟 -->
+    <!-- ========================================== -->
+    
+    <!-- ทำให้แอปเต็มจอเมื่อเซฟลงหน้าจอมือถือ -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    
+    <!-- ตั้งชื่อแอปที่จะโชว์ใต้ไอคอน -->
+    <meta name="apple-mobile-web-app-title" content="TripWallet">
+    <meta name="application-name" content="TripWallet">
+    
+    <!-- เปลี่ยนสีขอบบนของมือถือให้กลืนไปกับแอป -->
+    <meta name="theme-color" content="#f97316">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    
+    <!-- 🏖️ ไอคอนแอปสำหรับ Browser ทั่วไปและ Android -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='25' fill='%23f97316'/><text x='50%' y='54%' font-size='60' text-anchor='middle' dominant-baseline='middle'>🏖️</text></svg>">
+    
+    <!-- 🏖️ ไอคอนแอปสำหรับ iPhone / iPad (iOS) -->
+    <!-- ถ้าต้องอยากเปลี่ยนรูปไอคอน ให้เอารูปตัวเองไปฝากเว็บรับฝากรูป แล้วเอา URL มาใส่แทนลิงก์ด้านล่างนี้นะ! -->
+    <link rel="apple-touch-icon" href="https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/Emoji_u1f3d6.svg/512px-Emoji_u1f3d6.svg.png">
+
+    <!-- ========================================== -->
+
+    <!-- นำเข้า Tailwind CSS เพื่อความสวยงาม -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- นำเข้า FontAwesome สำหรับไอคอนเท่ๆ -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- นำเข้า React.js แบบ Standalone -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* ตกแต่ง Scrollbar ให้ดูเนียนตา */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        
+        /* ปิดไฮไลท์สีฟ้าๆ เวลากดบนมือถือ และตั้งฟอนต์สวยๆ */
+        body { 
+            -webkit-tap-highlight-color: transparent; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f9fafb;
+            /* ป้องกันการเด้งไปเด้งมาบน iPhone */
+            overscroll-behavior-y: none;
+        }
+
+        /* อนิเมชั่นเบาๆ */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up { animation: fadeInUp 0.3s ease-out forwards; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- ฟังก์ชันช่วยจัดรูปแบบเงิน ---
+        const formatMoney = (num) => num.toLocaleString('th-TH', { style: 'currency', currency: 'THB', maximumFractionDigits: 0 });
+
+        // --- Components ---
+
+        // 1. หน้าตั้งค่าและเพิ่มสมาชิก (Setup)
+        const SetupView = ({ members, addMember, removeMember, newMemberName, setNewMemberName, startTrip, onRestore }) => {
+            const fileInputRef = useRef(null);
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const data = JSON.parse(evt.target.result);
+                        onRestore(data);
+                    } catch (err) {
+                        alert('ไฟล์นี้ดูแปลกๆ นะเพื่อน น่าจะเสียหรือผิดรูปแบบ');
+                    }
+                };
+                reader.readAsText(file);
+                e.target.value = null; // รีเซ็ต input 
+            };
+
+            return (
+                <div className="min-h-[100dvh] bg-gradient-to-br from-orange-50 via-rose-50 to-pink-50 flex flex-col relative overflow-hidden">
+                <div className="absolute top-10 right-[-20px] text-orange-200 opacity-60"><i className="fa-solid fa-sun text-[150px]"></i></div>
+                
+                <div className="p-8 pt-16 pb-8 relative z-10">
+                    <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-rose-500 mb-2 tracking-tight">
+                    TRIP WALLET
+                    </h1>
+                    <p className="text-gray-500 font-bold text-xs tracking-widest uppercase">Start your journey</p>
+                </div>
+
+                <div className="px-6 mb-6 relative z-10">
+                    <div className="bg-white p-2 rounded-2xl shadow-xl shadow-rose-100/50 flex gap-2">
+                    <input
+                        type="text"
+                        value={newMemberName}
+                        onChange={(e) => setNewMemberName(e.target.value)}
+                        placeholder="ใส่ชื่อเพื่อน..."
+                        className="flex-1 p-4 bg-transparent outline-none text-gray-800 font-bold placeholder-gray-300 text-lg w-full"
+                        onKeyPress={(e) => e.key === 'Enter' && addMember()}
+                    />
+                    <button 
+                        onClick={addMember} 
+                        className="bg-gray-900 text-white w-14 h-14 rounded-xl hover:bg-black transition-all shadow-md active:scale-95 flex items-center justify-center flex-shrink-0"
+                    >
+                        <i className="fa-solid fa-plus text-xl"></i>
+                    </button>
+                    </div>
+                </div>
+
+                <div className="flex-1 px-6 overflow-y-auto pb-32 custom-scrollbar relative z-10">
+                    <div className="space-y-3">
+                    {members.map(m => (
+                        <div key={m.id} className="flex justify-between items-center p-4 bg-white/90 backdrop-blur-sm rounded-2xl border border-white shadow-sm hover:border-orange-200 transition-all animate-fade-in-up">
+                        <div className="flex items-center gap-4 overflow-hidden">
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-orange-100 to-rose-100 text-orange-600 flex items-center justify-center font-black text-lg shadow-inner flex-shrink-0">
+                            {m.name.charAt(0)}
+                            </div>
+                            <span className="font-bold text-gray-700 text-xl truncate">{m.name}</span>
+                        </div>
+                        <button 
+                            onClick={() => removeMember(m.id)} 
+                            className="text-gray-300 hover:text-red-500 w-10 h-10 bg-gray-50 rounded-xl transition-colors active:scale-90 flex items-center justify-center flex-shrink-0"
+                        >
+                            <i className="fa-solid fa-trash-can"></i>
+                        </button>
+                        </div>
+                    ))}
+                    
+                    {members.length === 0 && (
+                        <div className="text-center py-12">
+                        <div className="border-2 border-dashed border-rose-200 rounded-3xl bg-white/40 p-8 mb-6">
+                            <i className="fa-solid fa-user-group text-5xl mx-auto mb-3 text-rose-300"></i>
+                            <p className="text-rose-400 font-medium">ยังไม่มีสมาชิกเลย...</p>
+                        </div>
+                        
+                        <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".json" />
+                        <button 
+                            onClick={() => fileInputRef.current.click()}
+                            className="text-gray-500 font-bold text-xs flex items-center justify-center gap-2 mx-auto hover:text-gray-800 transition bg-white/60 px-5 py-3 rounded-full shadow-sm"
+                        >
+                            <i className="fa-solid fa-upload"></i> กู้คืนข้อมูลเก่า (Restore)
+                        </button>
+                        </div>
+                    )}
+                    </div>
+                </div>
+
+                <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-orange-50/90 via-orange-50/80 to-transparent z-20 max-w-md mx-auto">
+                    <button 
+                        onClick={startTrip}
+                        disabled={members.length === 0}
+                        className={`w-full py-5 rounded-[2rem] font-black text-xl shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 ${
+                        members.length > 0 
+                            ? 'bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-orange-200 hover:shadow-orange-300' 
+                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        }`}
+                    >
+                        {members.length > 0 ? <span>เริ่มทริปเลย! <i className="fa-solid fa-rocket"></i></span> : 'เพิ่มเพื่อนก่อนนะ'}
+                    </button>
+                </div>
+                </div>
+            );
+        };
+
+        // 2. หน้าฟอร์มทำรายการ (Transaction)
+        const TransactionForm = ({ transType, amount, setAmount, description, setDescription, selectedMember, setSelectedMember, members, handleTransaction, setView, editId }) => {
+            const isMemberRequired = ['borrow', 'return', 'advance', 'reimburse'].includes(transType);
+            
+            const getTitle = () => {
+                switch(transType) {
+                    case 'collect_all': return { text: 'เก็บเงินกองกลาง', color: 'text-emerald-600', icon: <i className="fa-solid fa-wallet"></i> };
+                    case 'expense': return { text: 'บันทึกค่าใช้จ่าย', color: 'text-rose-600', icon: <i className="fa-solid fa-credit-card"></i> };
+                    case 'borrow': return { text: 'ยืมกองกลาง', color: 'text-amber-600', icon: <i className="fa-solid fa-money-bill-transfer"></i> };
+                    case 'return': return { text: 'คืนเงินยืม', color: 'text-cyan-600', icon: <i className="fa-solid fa-rotate"></i> };
+                    case 'advance': return { text: 'สำรองจ่ายไปก่อน', color: 'text-violet-600', icon: <i className="fa-solid fa-hand-holding-dollar"></i> };
+                    case 'reimburse': return { text: 'คืนเงินสำรอง', color: 'text-blue-600', icon: <i className="fa-solid fa-circle-check"></i> };
+                    default: return { text: '', color: '', icon: null };
+                }
+            }
+
+            const info = getTitle();
+
+            return (
+                <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex flex-col justify-end sm:justify-center p-0 sm:p-4">
+                <div className="bg-white rounded-t-[2.5rem] sm:rounded-[3rem] shadow-2xl p-8 w-full max-w-md mx-auto animate-fade-in-up h-[85vh] sm:h-auto flex flex-col relative">
+                    <div className="flex justify-between items-center mb-8 shrink-0">
+                        <h3 className={`font-black text-2xl flex items-center gap-3 ${info.color}`}>
+                            {info.icon} {editId ? 'แก้ไขรายการ' : info.text}
+                        </h3>
+                        <button onClick={() => setView('dashboard')} className="text-gray-400 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 w-10 h-10 flex items-center justify-center rounded-full transition-colors"><i className="fa-solid fa-xmark text-lg"></i></button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto pb-4 custom-scrollbar">
+                        <div className="mb-8">
+                            <div className="relative">
+                                <input 
+                                    type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                                    className="w-full text-6xl font-black text-gray-800 bg-transparent outline-none placeholder-gray-100 tracking-tighter"
+                                    placeholder="0" autoFocus
+                                />
+                                <span className="text-gray-400 font-bold text-sm absolute top-4 right-0 bg-gray-50 px-3 py-1 rounded-lg">THB</span>
+                            </div>
+                        </div>
+
+                        {isMemberRequired && (
+                        <div className="mb-8">
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">
+                                {transType === 'advance' ? 'ใครจ่ายให้ก่อน?' : 
+                                transType === 'reimburse' ? 'คืนเงินให้ใคร?' : 'เลือกเพื่อนเลย'}
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                            {members.map(m => (
+                                <button
+                                key={m.id}
+                                onClick={() => setSelectedMember(m.id)}
+                                className={`px-5 py-3 rounded-2xl text-sm font-bold border-2 transition-all active:scale-95 ${selectedMember === m.id ? 'bg-gray-900 text-white border-gray-900 shadow-lg' : 'bg-white text-gray-500 border-gray-100 hover:border-gray-300'}`}
+                                >
+                                {m.name}
+                                </button>
+                            ))}
+                            </div>
+                        </div>
+                        )}
+
+                        <div className="mb-4">
+                        <input 
+                            type="text" value={description} onChange={e => setDescription(e.target.value)}
+                            className="w-full p-5 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-gray-200 focus:bg-white transition-all outline-none text-gray-700 font-medium"
+                            placeholder={transType === 'expense' ? 'เช่น ค่าที่พัก, ค่าอาหาร...' : 'บันทึกช่วยจำ...'}
+                        />
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={handleTransaction} 
+                        className={`w-full py-5 rounded-[2rem] font-bold text-xl shadow-xl active:scale-95 transition-all flex justify-center items-center gap-3 mt-4 shrink-0 ${editId ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-900 text-white hover:bg-black'}`}
+                    >
+                        <i className="fa-solid fa-floppy-disk"></i> {editId ? 'บันทึกการแก้ไข' : 'บันทึกรายการ'}
+                    </button>
+                </div>
+                </div>
+            );
+        };
+
+        // 3. หน้าสรุปและเคลียร์หนี้ (Summary)
+        const SummaryView = ({ transactions, members, totalPot, setView }) => {
+            const expenseFromPot = transactions.filter(t => t.type === 'out' || t.type === 'expense').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+            const totalAdvance = transactions.filter(t => t.type === 'advance').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+            
+            const totalDebt = members.reduce((acc, m) => {
+                const borrowed = transactions.filter(t => t.type === 'borrow' && t.memberId === m.id).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+                const returned = transactions.filter(t => t.type === 'return' && t.memberId === m.id).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+                return acc + (borrowed - returned);
+            }, 0);
+
+            const virtualPot = totalPot + totalDebt - totalAdvance;
+            const memberCount = members.length > 0 ? members.length : 1;
+            const sharePerPerson = virtualPot / memberCount;
+
+            const memberBalances = members.map(m => {
+                const myAdvance = transactions.filter(t => t.type === 'advance' && t.memberId === m.id).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+                const myBorrowed = transactions.filter(t => t.type === 'borrow' && t.memberId === m.id).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+                const myReturned = transactions.filter(t => t.type === 'return' && t.memberId === m.id).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+                const myDebt = myBorrowed - myReturned;
+                const netReceive = sharePerPerson + myAdvance - myDebt;
+                return { ...m, netReceive };
+            });
+
+            const settlementPlan = [];
+            let currentPot = totalPot; 
+            let creditors = memberBalances.filter(m => m.netReceive > 1).map(m => ({ ...m }));
+            let debtors = memberBalances.filter(m => m.netReceive < -1).map(m => ({ ...m, netReceive: Math.abs(m.netReceive) }));
+
+            if (currentPot > 0 && creditors.length > 0) {
+                creditors.forEach(creditor => {
+                    if (currentPot > 0 && creditor.netReceive > 0) {
+                        const payAmount = Math.min(currentPot, creditor.netReceive);
+                        settlementPlan.push({ from: 'กองกลาง (เงินสด)', to: creditor.name, amount: payAmount, isPot: true });
+                        currentPot -= payAmount;
+                        creditor.netReceive -= payAmount;
+                    }
+                });
+            }
+
+            debtors.sort((a, b) => b.netReceive - a.netReceive);
+            creditors.sort((a, b) => b.netReceive - a.netReceive);
+
+            let dIndex = 0; let cIndex = 0;
+            while (dIndex < debtors.length && cIndex < creditors.length) {
+                const debtor = debtors[dIndex];
+                const creditor = creditors[cIndex];
+                if (debtor.netReceive < 1) { dIndex++; continue; }
+                if (creditor.netReceive < 1) { cIndex++; continue; }
+                const transferAmount = Math.min(debtor.netReceive, creditor.netReceive);
+                settlementPlan.push({ from: debtor.name, to: creditor.name, amount: transferAmount, isPot: false });
+                debtor.netReceive -= transferAmount;
+                creditor.netReceive -= transferAmount;
+            }
+        
+            const copySummary = () => {
+                let txt = `📋 *สรุปเคลียร์ยอดทริป*\n`;
+                if(settlementPlan.length === 0) {
+                    txt += `✅ เคลียร์หมดแล้วจ้า ไม่มียอดค้าง!`;
+                } else {
+                    settlementPlan.forEach(p => {
+                        txt += `${p.isPot ? '🏦' : '👉'} ${p.from} -> ${p.to}: ${formatMoney(p.amount)}\n`;
+                    });
+                }
+                const textArea = document.createElement("textarea");
+                textArea.value = txt;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('คัดลอกโพยเรียบร้อย เอาไปแปะในไลน์กลุ่มได้เลย!');
+            };
+
+            return (
+            <div className="fixed inset-0 z-50 bg-gray-50 flex flex-col font-sans max-w-md mx-auto">
+                <div className="bg-white p-8 rounded-b-[3rem] shadow-sm border-b border-gray-100">
+                    <div className="flex justify-between items-center mb-6">
+                        <button onClick={() => setView('dashboard')} className="w-12 h-12 flex items-center justify-center bg-gray-50 hover:bg-gray-100 rounded-full transition"><i className="fa-solid fa-arrow-left text-lg"></i></button>
+                        <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2"><i className="fa-solid fa-calculator text-orange-500"></i> เคลียร์ยอด</h2>
+                        <div className="w-12"></div>
+                    </div>
+                    <div className="text-center bg-orange-50 rounded-3xl p-6 border border-orange-100">
+                        <p className="text-orange-500 text-xs font-bold uppercase tracking-widest mb-2">เงินกองกลางคงเหลือ</p>
+                        <h1 className="text-4xl font-black text-orange-600 tracking-tighter">{formatMoney(totalPot)}</h1>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                    <div className="mb-8">
+                        <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><i className="fa-solid fa-circle-check text-green-500"></i> แผนการโอนเงิน (Settlement)</h3>
+                        {settlementPlan.length === 0 ? (
+                            <div className="p-10 text-center bg-white text-green-600 rounded-3xl border border-green-100 shadow-sm">
+                                <i className="fa-solid fa-check text-4xl mx-auto mb-4 opacity-50 block"></i>
+                                <p className="font-bold text-xl">เพอร์เฟกต์!</p>
+                                <p className="text-sm opacity-70">ไม่มีใครต้องโอนเงินให้กันแล้ว</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {settlementPlan.map((plan, idx) => (
+                                    <div key={idx} className={`flex justify-between items-center p-5 rounded-3xl shadow-sm border ${plan.isPot ? 'bg-orange-50 border-orange-100' : 'bg-white border-gray-100'}`}>
+                                        <div className="flex flex-col flex-1 overflow-hidden">
+                                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">จาก</span>
+                                            <span className="font-bold text-gray-800 text-lg truncate w-full">{plan.from}</span>
+                                        </div>
+                                        <div className="flex flex-col items-center px-2">
+                                            <span className="text-xs font-black text-gray-900 bg-gray-100 px-3 py-1 rounded-lg mb-1 whitespace-nowrap">{formatMoney(plan.amount)}</span>
+                                            <i className="fa-solid fa-arrow-right text-gray-300"></i>
+                                        </div>
+                                        <div className="flex flex-col flex-1 items-end overflow-hidden">
+                                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">ให้</span>
+                                            <span className="font-bold text-gray-800 text-lg truncate w-full text-right">{plan.to}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div>
+                        <h3 className="font-bold text-gray-400 mb-4 text-xs uppercase tracking-wider flex items-center gap-2"><i className="fa-solid fa-file-lines"></i> รายละเอียดสุทธิ (Net Balance)</h3>
+                        <div className="bg-white rounded-3xl p-2 border border-gray-100 shadow-sm">
+                            {memberBalances.map((m, i) => (
+                                <div key={m.id} className={`flex justify-between items-center p-4 ${i !== memberBalances.length-1 ? 'border-b border-gray-50' : ''}`}>
+                                    <span className="font-bold text-gray-700 truncate pr-2">{m.name}</span>
+                                    <span className={`text-sm font-bold px-3 py-1 rounded-lg flex-shrink-0 ${m.netReceive > 0 ? 'bg-green-50 text-green-600' : m.netReceive < 0 ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-400'}`}>
+                                        {m.netReceive > 0 ? `+${formatMoney(m.netReceive)}` : m.netReceive < 0 ? `${formatMoney(m.netReceive)}` : '0'}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-6 bg-white border-t border-gray-100">
+                    <button onClick={copySummary} className="w-full py-4 bg-gray-900 text-white rounded-[2rem] font-bold flex items-center justify-center gap-2 hover:bg-black transition active:scale-95 shadow-xl">
+                        <i className="fa-solid fa-copy"></i> ก๊อปปี้โพยโอนเงิน
+                    </button>
+                </div>
+            </div>
+            );
+        };
+
+        // 4. แดชบอร์ดหลัก (Dashboard)
+        const Dashboard = ({ totalPot, members, memberStatus, transactions, formatMoney, resetAll, setView, setTransType, setSelectedMember, onEdit, onDeleteTransaction, onBackup }) => (
+        <div className="pb-32 bg-gray-50 min-h-[100dvh] font-sans flex flex-col">
+            {/* Header */}
+            <div className="bg-white rounded-b-[3rem] p-8 pb-10 shadow-sm border-b border-gray-100 relative overflow-hidden flex-shrink-0 z-20">
+            <div className="flex justify-between items-start relative z-10">
+                <div>
+                    <p className="text-gray-400 text-xs font-bold tracking-widest uppercase mb-2 flex items-center gap-2">
+                        <i className="fa-solid fa-wallet"></i> กองกลางตอนนี้
+                    </p>
+                    <h1 className="text-5xl font-black text-gray-900 tracking-tighter">{formatMoney(totalPot)}</h1>
+                </div>
+                <button onClick={() => setView('summary')} className="w-14 h-14 flex items-center justify-center bg-orange-50 text-orange-500 rounded-2xl hover:bg-orange-100 transition shadow-sm border border-orange-100 active:scale-90">
+                    <i className="fa-solid fa-calculator text-2xl"></i>
+                </button>
+            </div>
+            
+            <div className="mt-8 flex justify-between items-center">
+                <div className="flex -space-x-3 pl-2">
+                        {members.slice(0,4).map(m => (
+                            <div key={m.id} className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-100 to-rose-100 border-2 border-white shadow-sm flex items-center justify-center text-sm font-black text-orange-600">
+                                {m.name.charAt(0)}
+                            </div>
+                        ))}
+                        {members.length > 4 && <div className="w-10 h-10 rounded-full bg-gray-900 text-white border-2 border-white flex items-center justify-center font-bold text-xs">+{members.length-4}</div>}
+                </div>
+                <button onClick={() => setView('setup')} className="bg-gray-100 text-gray-600 px-5 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 hover:bg-gray-200 transition active:scale-95">
+                    <i className="fa-solid fa-user-group"></i> จัดการคน
+                </button>
+            </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar relative z-10">
+                {/* ปุ่มทำรายการหลัก */}
+                <div className="grid grid-cols-2 gap-4 p-6 -mt-6">
+                <button onClick={() => { setTransType('collect_all'); setView('transaction'); }} className="bg-gradient-to-br from-emerald-400 to-teal-500 p-6 rounded-[2rem] shadow-lg shadow-emerald-200/50 hover:-translate-y-1 transition-all flex flex-col justify-between h-36 text-white active:scale-95">
+                    <div className="bg-white/20 w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md"><i className="fa-solid fa-wallet text-xl"></i></div>
+                    <div>
+                        <span className="font-bold text-lg text-left block">เก็บเงิน</span>
+                        <span className="text-emerald-100 text-xs font-medium">เข้ากองกลาง</span>
+                    </div>
+                </button>
+                <button onClick={() => { setTransType('expense'); setView('transaction'); }} className="bg-gradient-to-br from-rose-400 to-pink-500 p-6 rounded-[2rem] shadow-lg shadow-rose-200/50 hover:-translate-y-1 transition-all flex flex-col justify-between h-36 text-white active:scale-95">
+                    <div className="bg-white/20 w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md"><i className="fa-solid fa-credit-card text-xl"></i></div>
+                    <div>
+                        <span className="font-bold text-lg text-left block">จ่ายออก</span>
+                        <span className="text-rose-100 text-xs font-medium">บันทึกค่าใช้จ่าย</span>
+                    </div>
+                </button>
+                </div>
+
+                {/* ปุ่มทำรายการรอง */}
+                <div className="px-6 mb-8">
+                <div className="flex gap-3 overflow-x-auto pb-4 custom-scrollbar">
+                    <button onClick={() => { setTransType('advance'); setView('transaction'); setSelectedMember(''); }} className="min-w-[120px] bg-white p-4 rounded-3xl border border-gray-100 flex flex-col items-center gap-3 hover:border-violet-200 transition shadow-sm active:scale-95">
+                        <div className="text-violet-500 bg-violet-50 w-12 h-12 flex items-center justify-center rounded-2xl"><i className="fa-solid fa-hand-holding-dollar text-xl"></i></div>
+                        <span className="text-xs font-bold text-gray-600">ออกให้ก่อน</span>
+                    </button>
+                    <button onClick={() => { setTransType('borrow'); setView('transaction'); setSelectedMember(''); }} className="min-w-[120px] bg-white p-4 rounded-3xl border border-gray-100 flex flex-col items-center gap-3 hover:border-amber-200 transition shadow-sm active:scale-95">
+                        <div className="text-amber-500 bg-amber-50 w-12 h-12 flex items-center justify-center rounded-2xl"><i className="fa-solid fa-money-bill-transfer text-xl"></i></div>
+                        <span className="text-xs font-bold text-gray-600">ยืมกองกลาง</span>
+                    </button>
+                    <button onClick={() => { setTransType('return'); setView('transaction'); setSelectedMember(''); }} className="min-w-[120px] bg-white p-4 rounded-3xl border border-gray-100 flex flex-col items-center gap-3 hover:border-cyan-200 transition shadow-sm active:scale-95">
+                        <div className="text-cyan-500 bg-cyan-50 w-12 h-12 flex items-center justify-center rounded-2xl"><i className="fa-solid fa-rotate text-xl"></i></div>
+                        <span className="text-xs font-bold text-gray-600">คืนเงินยืม</span>
+                    </button>
+                </div>
+                </div>
+
+                {/* สถานะรายคน */}
+                <div className="px-6 mb-8">
+                <h3 className="font-bold text-gray-900 mb-4 text-lg">สถานะเพื่อนๆ</h3>
+                <div className="space-y-3">
+                    {members.map(m => {
+                    const balance = memberStatus[m.id] || 0;
+                    return (
+                        <div key={m.id} className="bg-white p-5 rounded-3xl shadow-sm flex justify-between items-center border border-gray-50 hover:shadow-md transition">
+                        <div className="flex items-center gap-4 overflow-hidden">
+                            <div className={`w-2 h-10 rounded-full shrink-0 ${balance === 0 ? 'bg-emerald-400' : balance > 0 ? 'bg-rose-400' : 'bg-violet-400'}`}></div>
+                            <span className="font-bold text-gray-800 text-lg truncate">{m.name}</span>
+                        </div>
+                        
+                        {balance === 0 ? (
+                            <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0"><i className="fa-solid fa-circle-check"></i> ปกติ</span>
+                        ) : (
+                            <div className="text-right shrink-0 pl-2">
+                                <span className={`font-black text-lg block ${balance > 0 ? 'text-rose-500' : 'text-violet-600'}`}>{formatMoney(Math.abs(balance))}</span>
+                                <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">{balance > 0 ? 'ยืมเงินไป' : 'สำรองจ่ายรอคืน'}</span>
+                            </div>
+                        )}
+                        </div>
+                    );
+                    })}
+                </div>
+                </div>
+
+                {/* รายการประวัติล่าสุด */}
+                <div className="px-6 pb-6">
+                <h3 className="font-bold text-gray-900 mb-4 text-lg">รายการล่าสุด</h3>
+                <div className="space-y-4">
+                    {transactions.map((t) => (
+                        <div key={t.id} className="flex justify-between items-center bg-white p-4 rounded-3xl shadow-sm border border-gray-50">
+                            <div className="flex gap-4 items-center overflow-hidden flex-1">
+                                <div className={`shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center ${
+                                    ['in', 'return'].includes(t.type) ? 'bg-emerald-100 text-emerald-600' : 
+                                    ['advance', 'reimburse'].includes(t.type) ? 'bg-violet-100 text-violet-600' : 
+                                    'bg-rose-100 text-rose-600'
+                                }`}>
+                                    {['in', 'return'].includes(t.type) ? <i className="fa-solid fa-wallet text-lg"></i> : <i className="fa-solid fa-credit-card text-lg"></i>}
+                                </div>
+                                <div className="truncate pr-2">
+                                    <div className="font-bold text-gray-800 text-md truncate">{t.desc}</div>
+                                    <div className="text-[10px] text-gray-400 font-medium mt-0.5">{new Date(t.timestamp).toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'})}</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                                <span className={`font-black text-sm whitespace-nowrap mr-2 ${
+                                    ['in', 'return'].includes(t.type) ? 'text-emerald-600' : 
+                                    ['advance', 'reimburse'].includes(t.type) ? 'text-violet-600' : 'text-rose-500'
+                                }`}>
+                                    {['in', 'return', 'reimburse'].includes(t.type) ? '+' : '-'}{formatMoney(t.amount)}
+                                </span>
+                                {/* ปุ่มแก้ไขและลบ */}
+                                <button onClick={() => onEdit(t)} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition active:scale-90">
+                                    <i className="fa-solid fa-pen text-sm"></i>
+                                </button>
+                                <button onClick={() => onDeleteTransaction(t.id)} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition active:scale-90">
+                                    <i className="fa-solid fa-trash-can text-sm"></i>
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    {transactions.length === 0 && (
+                        <div className="text-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-3xl bg-white">ยังไม่มีการใช้จ่ายจ้า 💸</div>
+                    )}
+                </div>
+                </div>
+
+                {/* ปุ่มจบการทำงาน */}
+                <div className="p-8 text-center pb-12 flex flex-col gap-5 mt-4">
+                    <button 
+                        onClick={onBackup}
+                        className="bg-white border border-gray-200 text-gray-600 py-4 px-6 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm active:scale-95 mx-auto"
+                    >
+                        <i className="fa-solid fa-download"></i> สำรองข้อมูล (Backup Data)
+                    </button>
+                    <button 
+                        onClick={resetAll} 
+                        className="text-red-400 hover:text-red-600 font-bold text-sm flex items-center justify-center gap-2 transition-colors mx-auto active:scale-95"
+                    >
+                        <i className="fa-solid fa-right-from-bracket"></i> เคลียร์ข้อมูลทั้งหมด (เริ่มทริปใหม่)
+                    </button>
+                </div>
+            </div>
+        </div>
+        );
+
+        // --- MAIN APP (The Reborn Core) ---
+
+        const TripWallet = () => {
+            // 1. Lazy Initialization (โหลดข้อมูลทันทีที่แอปเปิด กันเซฟทับ)
+            const [members, setMembers] = useState(() => {
+                try {
+                const saved = localStorage.getItem('tripwallet_reborn_html_members');
+                return saved ? JSON.parse(saved) : [];
+                } catch (e) { return []; }
+            });
+
+            const [transactions, setTransactions] = useState(() => {
+                try {
+                const saved = localStorage.getItem('tripwallet_reborn_html_trans');
+                return saved ? JSON.parse(saved) : [];
+                } catch (e) { return []; }
+            });
+
+            const [view, setView] = useState(() => {
+                try {
+                const saved = localStorage.getItem('tripwallet_reborn_html_members');
+                return (saved && JSON.parse(saved).length > 0) ? 'dashboard' : 'setup';
+                } catch(e) { return 'setup'; }
+            });
+            
+            // States ปกติสำหรับฟอร์ม
+            const [transType, setTransType] = useState('expense');
+            const [amount, setAmount] = useState('');
+            const [description, setDescription] = useState('');
+            const [selectedMember, setSelectedMember] = useState('');
+            const [newMemberName, setNewMemberName] = useState('');
+            const [editId, setEditId] = useState(null);
+
+            // 2. บันทึกข้อมูลอัตโนมัติ (Auto-Save) ทุกครั้งที่มีการเปลี่ยนแปลง
+            useEffect(() => {
+                localStorage.setItem('tripwallet_reborn_html_members', JSON.stringify(members));
+                localStorage.setItem('tripwallet_reborn_html_trans', JSON.stringify(transactions));
+            }, [members, transactions]);
+
+            // --- ฟังก์ชันหลัก ---
+
+            const addMember = () => {
+                if (newMemberName.trim() === '') return;
+                setMembers([...members, { id: Date.now(), name: newMemberName }]);
+                setNewMemberName('');
+            };
+
+            const removeMember = (id) => {
+                setMembers(members.filter(m => m.id !== id));
+            };
+
+            const startTrip = () => setView('dashboard');
+
+            const prepareEdit = (t) => {
+                setEditId(t.id);
+                setTransType(t.type);
+                setAmount(t.amount.toString());
+                setDescription(t.desc);
+                if (t.memberId) setSelectedMember(t.memberId);
+                setView('transaction');
+            };
+
+            const deleteTransaction = (id) => {
+                if(window.confirm('ลบรายการนี้ใช่ไหม?')) {
+                    setTransactions(transactions.filter(t => t.id !== id));
+                }
+            };
+
+            const handleTransaction = () => {
+                if (!amount || parseFloat(amount) <= 0) return;
+                const val = parseFloat(amount);
+                
+                if (editId) {
+                    // อัปเดตข้อมูลเดิม
+                    const updated = transactions.map(t => t.id === editId ? { 
+                        ...t, amount: val, type: transType, desc: description,
+                        memberId: ['borrow', 'return', 'advance', 'reimburse'].includes(transType) ? parseInt(selectedMember) : undefined
+                    } : t);
+                    setTransactions(updated);
+                    setEditId(null);
+                } else {
+                    // สร้างรายการใหม่
+                    const now = Date.now();
+                    const timeISO = new Date().toISOString(); 
+                    let newTrans = [];
+                    if (transType === 'collect_all') {
+                        newTrans = members.map(m => ({ id: now + Math.random(), type: 'in', amount: val, memberId: m.id, desc: `เก็บเงินกองกลาง (${description || 'ระดมทุน'})`, timestamp: timeISO }));
+                    } else {
+                        let data = { id: now, type: transType === 'expense' ? 'out' : transType, amount: val, timestamp: timeISO, desc: description };
+                        if (transType === 'expense') data.desc = description || 'ใช้จ่ายทั่วไป';
+                        else if (['borrow', 'return', 'advance', 'reimburse'].includes(transType)) {
+                            if (!selectedMember) return;
+                            data.memberId = parseInt(selectedMember);
+                            data.desc = `${members.find(m => m.id === parseInt(selectedMember))?.name} ${
+                                transType === 'borrow' ? 'ยืมเงิน' : transType === 'return' ? 'คืนเงินยืม' : transType === 'advance' ? 'สำรองจ่าย' : 'เบิกเงินคืน'
+                            }`;
+                        }
+                        newTrans = [data];
+                    }
+                    // เรียงให้ของใหม่อยู่บนสุด
+                    setTransactions([...newTrans, ...transactions]); 
+                }
+                // ล้างฟอร์ม
+                setAmount(''); setDescription(''); setSelectedMember(''); setView('dashboard');
+            };
+
+            const resetAll = () => {
+                if (!window.confirm('⚠️ แน่ใจนะว่าจะล้างข้อมูลทั้งหมด?\n(ถ้ากลัวพลาดให้กด Backup ไว้ก่อนนะ)')) return;
+                setMembers([]);
+                setTransactions([]);
+                localStorage.removeItem('tripwallet_reborn_html_members');
+                localStorage.removeItem('tripwallet_reborn_html_trans');
+                setView('setup');
+            };
+
+            const backupData = () => {
+                const data = JSON.stringify({ members, transactions });
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `TripWallet_Backup_${new Date().toISOString().slice(0,10)}.json`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            const restoreData = (data) => {
+                if (data.members && data.transactions) {
+                    setMembers(data.members);
+                    setTransactions(data.transactions);
+                    setView('dashboard');
+                }
+            };
+
+            const calculateBalance = () => {
+                let totalPot = 0;
+                const memberStatus = {};
+                members.forEach(m => memberStatus[m.id] = 0);
+                transactions.forEach(t => {
+                const amt = Number(t.amount) || 0; 
+                if (t.type === 'in' || t.type === 'return') totalPot += amt;
+                if (t.type === 'out' || t.type === 'expense' || t.type === 'borrow' || t.type === 'reimburse') totalPot -= amt;
+
+                if (t.type === 'borrow') memberStatus[t.memberId] = (memberStatus[t.memberId] || 0) + amt;
+                else if (t.type === 'return') memberStatus[t.memberId] = (memberStatus[t.memberId] || 0) - amt;
+                else if (t.type === 'advance') memberStatus[t.memberId] = (memberStatus[t.memberId] || 0) - amt;
+                else if (t.type === 'reimburse') memberStatus[t.memberId] = (memberStatus[t.memberId] || 0) + amt;
+                });
+                return { totalPot, memberStatus };
+            };
+
+            const { totalPot, memberStatus } = calculateBalance();
+
+            return (
+                <div className="bg-gray-100 w-full h-[100dvh] overflow-hidden sm:max-w-md sm:mx-auto sm:border-x sm:border-gray-200 sm:shadow-2xl relative flex flex-col text-gray-800">
+                {view === 'setup' ? (
+                    <SetupView 
+                        members={members} addMember={addMember} removeMember={removeMember} 
+                        newMemberName={newMemberName} setNewMemberName={setNewMemberName} 
+                        startTrip={startTrip} onRestore={restoreData}
+                    />
+                ) : view === 'summary' ? (
+                    <SummaryView transactions={transactions} members={members} totalPot={totalPot} setView={setView} />
+                ) : view === 'transaction' ? (
+                    <TransactionForm 
+                        transType={transType} amount={amount} setAmount={setAmount} 
+                        description={description} setDescription={setDescription} 
+                        selectedMember={selectedMember} setSelectedMember={setSelectedMember} 
+                        members={members} handleTransaction={handleTransaction} 
+                        setView={setView} editId={editId}
+                    />
+                ) : (
+                    <Dashboard 
+                        totalPot={totalPot} members={members} memberStatus={memberStatus} 
+                        transactions={transactions} formatMoney={formatMoney} 
+                        resetAll={resetAll} setView={setView} setTransType={setTransType} 
+                        setSelectedMember={setSelectedMember} onEdit={prepareEdit} 
+                        onDeleteTransaction={deleteTransaction} onBackup={backupData}
+                    />
+                )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<TripWallet />);
+    </script>
+</body>
+</html>
+
